@@ -18,6 +18,7 @@ CREATE TABLE
         status VARCHAR(20) DEFAULT 'draft',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
 -- ----------------------------
 -- TOPICS TABLE (ANTI-DUPLICATE)
 -- ----------------------------

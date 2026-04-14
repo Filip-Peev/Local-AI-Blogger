@@ -1,6 +1,8 @@
 import requests
 import mysql.connector
 import re
+import random
+import time
 from datetime import datetime
 import markdown
 
@@ -8,81 +10,162 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 
 DB_CONFIG = {
     "host": "localhost",
-    "port": 3307,
+    "port": 3306,
     "user": "root",
-    "password": "YourPassword",
+    "password": "YourDBPassword",
     "database": "blog_ai"
 }
 
 # ----------------------------
-# CALL MODEL
+# LOGGING (COLORS REMOVED)
+# ----------------------------
+def log(text):
+    """Simple logging without ANSI color codes."""
+    print(text)
+
+# ----------------------------
+# CALL MODEL (WITH TIMING)
 # ----------------------------
 def call_model(model, prompt):
-    response = requests.post(OLLAMA_URL, json={
-        "model": model,
-        "prompt": prompt,
-        "stream": False
-    })
-    return response.json()["response"]
+    log(f"[MODEL] Using: {model}")
+    start = time.time()
+
+    try:
+        response = requests.post(OLLAMA_URL, json={
+            "model": model,
+            "prompt": prompt,
+            "stream": False
+        })
+
+        data = response.json()
+        duration = time.time() - start
+
+        if "response" in data:
+            # 1. Convert nanoseconds to seconds for all durations
+            load_s = data.get("load_duration", 0) / 1_000_000_000
+            prompt_s = data.get("prompt_eval_duration", 0) / 1_000_000_000
+            eval_s = data.get("eval_duration", 1) / 1_000_000_000
+            
+            # 2. Extract token counts
+            p_tokens = data.get("prompt_eval_count", 0)  # Input tokens
+            g_tokens = data.get("eval_count", 0)         # Output tokens
+            
+            # 3. Calculate speeds
+            tps = g_tokens / eval_s if eval_s > 0 else 0
+            
+            # Display detailed stats
+            log(f"--- Performance Stats ---")
+            log(f"Total Request Time: {duration:.2f}s")
+            log(f"Model Load Time:    {load_s:.2f}s")
+            log(f"Input/Prompt Size:  {p_tokens} tokens")
+            log(f"Output/Generation:  {g_tokens} tokens")
+            log(f"Generation Speed:   {tps:.2f} tokens/s")
+            log(f"-------------------------")
+            
+            return data["response"]
+
+        if "error" in data:
+            log(f"[ERROR] Model error: {data['error']}")
+            return ""
+
+        return ""
+
+    except Exception as e:
+        log(f"[FATAL] Request failed: {e}")
+        return ""
 
 # ----------------------------
-# TOPIC GENERATOR (PC HARDWARE FOCUSED)
+# STORY IDEA (ENGLISH)
 # ----------------------------
 def generate_topic():
-    prompt = """
-Generate ONE highly technical PC hardware blog topic.
+    model = "llama3.2:1b"
+    styles = [
+        "psychological horror",
+        "supernatural horror",
+        "small-town horror",
+        "isolation horror",
+        "paranoia-driven horror"
+    ]
+    style = random.choice(styles)
 
-Focus ONLY on:
-- CPU architecture
-- GPU architecture
-- RAM latency and bandwidth
-- SSD / NVMe storage
-- Motherboard chipsets
-- PCIe lanes
-- Cooling systems (air / liquid)
-- Power delivery (VRM)
-- Hardware benchmarking
+    prompt = f"""
+Generate ONE short horror story idea.
+
+Style:
+- {style}
+- Subtle and unsettling
 
 Rules:
-- No explanations
+- One sentence only
 - No lists
-- Must be a single specific technical idea
-- Return ONLY a single line.
+- No explanations
+- English only
 
 Example:
-How CPU cache hierarchy impacts real-world performance
-Now generate one topic:
-"""
+A man keeps receiving phone calls from himself one day in the future.
 
-    return call_model("llama3.2:1b", prompt).strip()
+Now generate one:
+"""
+    return call_model(model, prompt).strip()
 
 # ----------------------------
-# ARTICLE GENERATOR (HARDWARE FOCUSED)
+# STORY GENERATION (ENGLISH)
 # ----------------------------
 def generate_article(topic):
+    model = "mistral:7b"
     prompt = f"""
-Write a deep technical PC hardware article.
+Write a short horror story based on this idea:
 
-Topic: {topic}
+{topic}
+
+Style:
+- Psychological horror
+- Slow tension build
+- Realistic dialogue
+- Subtle supernatural or disturbing elements
 
 Rules:
 - 800–1200 words
 - Start with "# Title"
-- Use Markdown headings
-- Focus on hardware engineering concepts
-- Explain CPU/GPU/architecture behavior
-- NO links
-- Include examples and comparisons
+- Markdown format
+- No clichés
+- Include a subtle twist ending
+- English only
+
+Make it immersive and atmospheric.
 """
-
-    return call_model("llama3.2:3b", prompt)
+    return call_model(model, prompt)
 
 # ----------------------------
-# SEO GENERATION
+# TRANSLATE TO BULGARIAN
+# todorov/bggpt:Gemma-3-4B-IT-Q4_K_M <- smaller, faster
+# todorov/bggpt:Gemma-3-12B-IT-Q4_K_M
 # ----------------------------
-def generate_seo(article):
+def translate_to_bulgarian(article):
+    model = "todorov/bggpt:Gemma-3-4B-IT-Q4_K_M"
     prompt = f"""
-Extract SEO data from this PC hardware article.
+Translate the following horror story into natural Bulgarian.
+
+IMPORTANT:
+- Keep Markdown formatting
+- Preserve tone, pacing, and atmosphere
+- Make it sound like native Bulgarian literature
+- Do NOT shorten or summarize
+- Translate EVERYTHING including title
+- Output must be fully in Bulgarian
+
+STORY:
+{article}
+"""
+    return call_model(model, prompt)
+
+# ----------------------------
+# SEO (ENGLISH ONLY)
+# ----------------------------
+def generate_seo(article_en):
+    model = "llama3.2:1b"
+    prompt = f"""
+Extract SEO data from this horror story.
 
 Return EXACT format:
 
@@ -93,64 +176,44 @@ TAGS: ...
 Rules:
 - TITLE max 60 characters
 - DESCRIPTION max 155 characters
-- TAGS must be comma-separated from:
-CPU, GPU, RAM, SSD, NVMe, PCIe, Motherboard, VRM, Cooling, Benchmarking, Architecture
+- TAGS must be comma-separated
+- English only
+
+Use tags like:
+horror, psychological, supernatural, thriller, short story, dark fiction
 
 ARTICLE:
-{article}
+{article_en}
 """
-
-    return call_model("llama3.2:1b", prompt)
+    return call_model(model, prompt)
 
 def parse_seo(text):
-    title = ""
-    desc = ""
-    tags = ""
-
+    title, desc, tags = "", "", ""
     for line in text.split("\n"):
-        line = line.strip()
-
-        if line.startswith("TITLE:"):
-            title = line.replace("TITLE:", "").strip()
-
-        elif line.startswith("DESCRIPTION:"):
-            desc = line.replace("DESCRIPTION:", "").strip()
-
-        elif line.startswith("TAGS:"):
-            tags = line.replace("TAGS:", "").strip()
-
+        clean_line = line.strip().replace("*", "") # Removes **bolding**
+        
+        if clean_line.upper().startswith("TITLE:"):
+            title = clean_line.split(":", 1)[1].strip()
+        elif clean_line.upper().startswith("DESCRIPTION:"):
+            desc = clean_line.split(":", 1)[1].strip()
+        elif clean_line.upper().startswith("TAGS:"):
+            tags = clean_line.split(":", 1)[1].strip()
     return title, desc, tags
 
-# ----------------------------
-# Improve
-# ----------------------------
-def improve_article(article):
-    prompt = f"""
-Improve this PC hardware article:
-
-- Fix grammar
-- Improve clarity
-- Remove repetition
-- Make it more professional
-- Keep technical accuracy
-
-ARTICLE:
-{article}
-"""
-
-    return call_model("mistral:7b", prompt)
 # ----------------------------
 # UTILITIES
 # ----------------------------
 def extract_title(article):
     match = re.search(r"# (.+)", article)
-    return match.group(1).strip() if match else "Untitled Hardware Post"
+    return match.group(1).strip() if match else "Untitled Horror Story"
 
 def slugify(title):
     return re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
 
 def markdown_to_html(md):
-    return markdown.markdown(md or "")
+    html = markdown.markdown(md, extensions=["extra", "nl2br", "sane_lists", "smarty"])
+    html = html.replace("<p>", "<p class='lead'>", 1) 
+    return html
 
 # ----------------------------
 # DB HELPERS
@@ -158,46 +221,31 @@ def markdown_to_html(md):
 def topic_exists(topic):
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor()
-
     cursor.execute("SELECT COUNT(*) FROM topics WHERE topic=%s", (topic,))
     exists = cursor.fetchone()[0] > 0
-
     cursor.close()
     conn.close()
-
     return exists
 
 def save_topic(topic):
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor()
-
     cursor.execute("INSERT INTO topics (topic) VALUES (%s)", (topic,))
     conn.commit()
-
     cursor.close()
     conn.close()
 
 def save_post(title, slug, html, seo_title, seo_desc, tags):
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor()
-
     query = """
     INSERT INTO posts
     (title, slug, content, seo_title, seo_description, tags, status, created_at)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """
-
     cursor.execute(query, (
-        title,
-        slug,
-        html,
-        seo_title,
-        seo_desc,
-        tags,
-        "draft",   # 👈 IMPORTANT: admin approval system
-        datetime.now()
+        title, slug, html, seo_title, seo_desc, tags, "draft", datetime.now()
     ))
-
     conn.commit()
     cursor.close()
     conn.close()
@@ -206,32 +254,52 @@ def save_post(title, slug, html, seo_title, seo_desc, tags):
 # MAIN PIPELINE
 # ----------------------------
 if __name__ == "__main__":
+    pipeline_start = time.time()
 
-    print("Generating topic... (llama3.2:1b)")
+    log("\n--- STORY PIPELINE START ---\n")
+
+    # IDEA
+    step_start = time.time()
+    log("[STEP] Generating idea...")
     topic = generate_topic()
-    print("TOPIC:", topic)
+    log(f"[IDEA]: {topic}")
+    log(f"[STEP TIME] {time.time() - step_start:.2f}s\n")
 
     if topic_exists(topic):
-        print("Duplicate topic, skipping...")
+        log("[SKIP] Duplicate idea.")
         exit()
 
     save_topic(topic)
 
-    print("Generating article... (llama3.2:3b)")
-    article = generate_article(topic)
+    # STORY
+    step_start = time.time()
+    log("[STEP] Generating story (EN)...")
+    article_en = generate_article(topic)
+    log(f"[STEP TIME] {time.time() - step_start:.2f}s\n")
 
-    print("Improving article... (mistral:7b)")
-    article = improve_article(article)
-
-    print("Generating SEO... (llama3.2:1b)")
-    seo_raw = generate_seo(article)
+    # SEO
+    step_start = time.time()
+    log("[STEP] Generating SEO...")
+    seo_raw = generate_seo(article_en)
     seo_title, seo_desc, tags = parse_seo(seo_raw)
+    log(f"[STEP TIME] {time.time() - step_start:.2f}s\n")
 
-    title = extract_title(article)
+    # TRANSLATION
+    step_start = time.time()
+    log("[STEP] Translating to Bulgarian...")
+    article_bg = translate_to_bulgarian(article_en)
+    log(f"[STEP TIME] {time.time() - step_start:.2f}s\n")
+
+    # FINAL PROCESSING
+    title = extract_title(article_en)
     slug = slugify(title)
-    html = markdown_to_html(article)
+    html = markdown_to_html(article_bg)
 
-    print("Saving post...")
+    # SAVE
+    step_start = time.time()
+    log("[STEP] Saving...")
     save_post(title, slug, html, seo_title, seo_desc, tags)
+    log(f"[STEP TIME] {time.time() - step_start:.2f}s\n")
 
-    print("DONE")
+    total_time = time.time() - pipeline_start
+    log(f"--- DONE in {total_time:.2f}s ---\n")

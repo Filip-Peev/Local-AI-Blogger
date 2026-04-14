@@ -58,7 +58,7 @@ $totalPages = ceil($totalCount / $limit);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI PC Hardware Blog</title>
+    <title>The Neural Crypt</title>
 
     <style>
         * {
@@ -220,7 +220,7 @@ $totalPages = ceil($totalCount / $limit);
     <div class="container">
 
         <h1>
-            <a href="index.php">🖥️ AI PC Hardware Blog</a>
+            <a href="index.php">The Neural Crypt</a>
         </h1>
 
         <form method="GET" class="search-box">
