@@ -17,7 +17,7 @@ pip install requests mysql-connector-python markdown
 ```bash
 ollama pull llama3.2:1b
 ollama pull mistral:7b
-ollama pull todorov/bggpt:Gemma-3-**12B**-IT-Q4_K_M
+ollama pull todorov/bggpt:Gemma-3-12B-IT-Q4_K_M
 ```
 *or smaller, faster model:* 
 ```bash
