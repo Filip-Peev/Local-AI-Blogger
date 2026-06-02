@@ -37,6 +37,10 @@ $tags = $post['tags'] ?? '';
             --accent: #60a5fa;
         }
 
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
             /* Default font */
             font-family: 'Crimson Pro', serif;
@@ -121,6 +125,27 @@ $tags = $post['tags'] ?? '';
             font-size: 13px;
             font-weight: bold;
         }
+
+        .bottom-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 60px;
+            padding: 12px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .bottom-nav a {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .bottom-nav a:hover {
+            opacity: 0.7;
+        }
     </style>
 </head>
 
@@ -152,6 +177,11 @@ $tags = $post['tags'] ?? '';
                 <?php echo $post['content']; ?>
             </div>
         </article>
+
+        <div class="bottom-nav">
+            <a href="index.php">← LIBRARY</a>
+            <a href="#">↑ BACK TO TOP</a>
+        </div>
     </div>
 
     <script>
