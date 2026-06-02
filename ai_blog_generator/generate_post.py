@@ -142,7 +142,7 @@ Make it immersive and atmospheric.
 # todorov/bggpt:Gemma-3-12B-IT-Q4_K_M
 # ----------------------------
 def translate_to_bulgarian(article):
-    model = "todorov/bggpt:Gemma-3-4B-IT-Q4_K_M"
+    model = "todorov/bggpt:Gemma-3-12B-IT-Q4_K_M"
     prompt = f"""
 Translate the following horror story into natural Bulgarian.
 
